@@ -1,14 +1,5 @@
 #include "server.h"
 
-class Message {
-      bool needed();
-
-      string command;
-      string name;
-      int length;
-      string value;
-}
-
 Server::Server(int port) {
     // setup variables
     port_ = port;
@@ -87,25 +78,32 @@ Server::serve() {
 
 void
 Server::handle(int client) {
-    // loop to handle all requests
-    while (1) {
-        // get a request
-        string response = get_request(client);
-        // break if client is done or an error occurred
-        if (response.empty())
-            break;
-        // send response
-        bool success = send_response(client,response);
-        // break if an error occurred
-        if (not success)
-            break;
-    }
-    close(client);
+	// loop to handle all requests
+	cache = "";
+	while (1) {
+		// get a request
+		string request = get_request(client);
+		cache = "";
+		// break if client is done or an error occurred
+		if (request.empty())
+			break;
+		// parse request
+		Message message = parse_request(request);
+		// get more characters if needed
+		if (message.needed())
+			get_value(client, message);
+		// do something
+		bool success = handle_message(client, message);
+		// break if an error occurred
+		if (not success)
+			break;
+	}
+	close(client);
 }
 
 string
 Server::get_request(int client) {
-    string request = "";
+    string request = cache;
     // read until we get a newline
     while (request.find("\n") == string::npos) {
         int nread = recv(client,buf_,1024,0);
@@ -116,22 +114,20 @@ Server::get_request(int client) {
             else
                 // an error occurred, so break out
                 return "";
-        } else if (nread == 0) {
-            // the socket is closed
-            return "";
-        }
-        // be sure to use append in case we have binary data
+		}
+		else if (nread == 0) {
+			// the socket is closed
+			return "";
+		}
         request.append(buf_,nread);
     }
-    //add everything after newline to cache
-    process_request(string request);
-    return response;
+    return request;
 }
 
-void
-Server::process_request(string request) {
+Message
+Server::parse_request(string request) {
     int i = 0;
-    Message message;
+	Message message;
     string command; 
     while (request.at(i) != ' ') {
         command.append(request.at(i));
@@ -139,11 +135,52 @@ Server::process_request(string request) {
     }
     message.command = command;
     i++;
-    string 
+	string name;
     while (request.at(i) != ' ') {
-
+		name.append(request.at(i));
+		i++;
     }
+	message.name = name;
+	i++;
+	string length;
+	while (request.at(i) != "\n") {
+		length.append(request.at(i));
+		i++;
+	}
+	std::string::size_type sz;
+	message.length = std::stoi(length, &sz);
+	if (request.at(i) != "\n") {
+		//error;
+		cout << "Error";
+	}
+	else {
+		int position = request.find("\n");
+		position++;
+		for (int i = position; i < request.length; i++) {
+			cache.append(request.at(i));
+		}
+	}
+	message.value = cache;
+}
 
+void Server::get_value()
+{
+	while (cache.length != message.length) {
+		int nread = recv(client, buf_, 1024, 0);
+		if (nread < 0) {
+			if (errno == EINTR)
+				// the socket call was interrupted -- try again
+				continue;
+			else
+				// an error occurred, so break out
+				return "";
+		}
+		else if (nread == 0) {
+			// the socket is closed
+			return "";
+		}
+		cache.append(buf_, nread);
+	}
 }
 
 bool

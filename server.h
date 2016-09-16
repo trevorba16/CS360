@@ -22,11 +22,11 @@ public:
     
 private:
     void create();
-    void close_socket()
+	void close_socket();
     void serve();
     void handle(int);
     string get_request(int);
-    void process_request(string);
+    Message parse_request(string);
     void get_value();
 
     bool send_response(int, string);
@@ -36,4 +36,19 @@ private:
     int buflen_;
     char* buf_;
     string cache;
+
+
+	class Message {
+		bool needed() {
+			if (value.length() == length) {
+				return false;
+			}
+			else return true;
+		};
+
+		string command = "";
+		string name = "";
+		int length = 0;
+		string value = "";
+	}
 };
